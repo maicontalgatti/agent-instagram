@@ -41,6 +41,14 @@ class ImageGenerator:
             print(f"Erro ao fazer upload da imagem para o Cloudinary: {e}")
             return None
 
+    def upload_local_file_to_cloudinary(self, local_path):
+        try:
+            upload_result = cloudinary.uploader.upload(local_path, folder="instagram_posts")
+            return upload_result["secure_url"]
+        except Exception as e:
+            print(f"Erro ao enviar arquivo local para o Cloudinary: {e}")
+            return None
+
 if __name__ == "__main__":
     generator = ImageGenerator()
     sample_prompt = "Um robô programando em um laptop, com código flutuando ao redor, estilo futurista e cores vibrantes."
