@@ -1,0 +1,5 @@
+requests
+newsapi-python
+openai
+python-dotenv
+cloudinary
