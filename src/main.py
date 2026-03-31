@@ -4,7 +4,7 @@ from config import DEFAULT_POST_IMAGE_URL
 from instagram_poster import InstagramPoster
 
 # True = não chama News API, OpenAI nem DALL-E; só testa postagem (Cloudinary opcional).
-USE_MOCK_FOR_POST_TEST = True
+USE_MOCK_FOR_POST_TEST = False
 
 DEFAULT_TEST_CAPTION = (
     "Post de teste do agente — conteúdo fixo para validar a publicação no Instagram. "

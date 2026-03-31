@@ -1,63 +1,125 @@
+import time
+
 import requests
+
 from config import INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID
+
+# Alinhado ao script de teste que funcionou (Graph API v18.0).
+GRAPH_API_VERSION = "v18.0"
+MEDIA_INITIAL_WAIT_SEC = 10
+STATUS_POLL_INTERVAL_SEC = 3
+STATUS_POLL_MAX_ATTEMPTS = 10
+
 
 class InstagramPoster:
     def __init__(self):
         self.access_token = INSTAGRAM_ACCESS_TOKEN
-        self.page_id = INSTAGRAM_BUSINESS_ACCOUNT_ID
-        self.graph_url = "https://graph.facebook.com/v19.0/"
+        self.ig_id = INSTAGRAM_BUSINESS_ACCOUNT_ID
+        self.graph_base = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
     def create_media_object(self, image_url, caption):
-        endpoint = f"{self.graph_url}{self.page_id}/media"
-        params = {
+        endpoint = f"{self.graph_base}/{self.ig_id}/media"
+        payload = {
             "image_url": image_url,
             "caption": caption,
-            "access_token": self.access_token
+            "access_token": self.access_token,
         }
+        response = None
         try:
-            response = requests.post(endpoint, params=params)
+            response = requests.post(endpoint, data=payload)
+            print(f"Resposta criação de mídia: {response.text}")
             response.raise_for_status()
-            return response.json()["id"]
+            data = response.json()
+            return data.get("id")
         except requests.exceptions.RequestException as e:
             print(f"Erro ao criar objeto de mídia: {e}")
-            if response:
-                print(f"Resposta da API: {response.json()}")
+            if response is not None:
+                try:
+                    print(f"Resposta da API: {response.json()}")
+                except Exception:
+                    print(f"Corpo bruto: {response.text}")
             return None
 
-    def publish_media(self, creation_id):
-        endpoint = f"{self.graph_url}{self.page_id}/media_publish"
-        params = {
-            "creation_id": creation_id,
-            "access_token": self.access_token
+    def wait_until_media_ready(self, creation_id):
+        """Aguarda o processamento assíncrono da mídia antes de publicar."""
+        print("Aguardando processamento da mídia...")
+        time.sleep(MEDIA_INITIAL_WAIT_SEC)
+
+        status_url = f"{self.graph_base}/{creation_id}"
+        status_params = {
+            "fields": "status_code",
+            "access_token": self.access_token,
         }
+
+        status_code = None
+        for attempt in range(STATUS_POLL_MAX_ATTEMPTS):
+            try:
+                status_res = requests.get(status_url, params=status_params)
+                print(f"Status da mídia (tentativa {attempt + 1}/{STATUS_POLL_MAX_ATTEMPTS}): {status_res.text}")
+                status_res.raise_for_status()
+                status_json = status_res.json()
+            except (requests.exceptions.RequestException, ValueError) as e:
+                print(f"Erro ao consultar status da mídia: {e}")
+                return False
+
+            status_code = status_json.get("status_code")
+            print(f"status_code: {status_code}")
+
+            if status_code == "FINISHED":
+                print("Mídia pronta para publicar.")
+                return True
+
+            time.sleep(STATUS_POLL_INTERVAL_SEC)
+
+        print("A mídia não ficou pronta a tempo (status_code != FINISHED).")
+        return False
+
+    def publish_media(self, creation_id):
+        endpoint = f"{self.graph_base}/{self.ig_id}/media_publish"
+        payload = {
+            "creation_id": creation_id,
+            "access_token": self.access_token,
+        }
+        response = None
         try:
-            response = requests.post(endpoint, params=params)
+            response = requests.post(endpoint, data=payload)
+            print(f"Resposta publicação: {response.text}")
             response.raise_for_status()
-            return response.json()["id"]
+            data = response.json()
+            return data.get("id")
         except requests.exceptions.RequestException as e:
             print(f"Erro ao publicar mídia: {e}")
-            if response:
-                print(f"Resposta da API: {response.json()}")
+            if response is not None:
+                try:
+                    print(f"Resposta da API: {response.json()}")
+                except Exception:
+                    print(f"Corpo bruto: {response.text}")
             return None
 
     def post_to_instagram(self, image_url, caption):
         print("Criando objeto de mídia...")
-        media_object_id = self.create_media_object(image_url, caption)
-        if media_object_id:
-            print(f"Objeto de mídia criado com ID: {media_object_id}")
-            print("Publicando mídia...")
-            publish_id = self.publish_media(media_object_id)
-            if publish_id:
-                print(f"Mídia publicada com sucesso! Post ID: {publish_id}")
-                return True
-        print("Falha ao postar no Instagram.")
+        creation_id = self.create_media_object(image_url, caption)
+        if not creation_id:
+            print("Falha ao criar mídia.")
+            return False
+
+        print(f"Objeto de mídia criado: {creation_id}")
+
+        if not self.wait_until_media_ready(creation_id):
+            return False
+
+        print("Publicando mídia...")
+        publish_id = self.publish_media(creation_id)
+        if publish_id:
+            print(f"Mídia publicada com sucesso! Post ID: {publish_id}")
+            return True
+
+        print("Falha ao publicar no Instagram.")
         return False
 
+
 if __name__ == "__main__":
-    # Este bloco só funcionará com as credenciais corretas do Instagram
-    # e uma URL de imagem válida. Use para testes locais.
     poster = InstagramPoster()
-    sample_image_url = "https://res.cloudinary.com/your_cloud_name/image/upload/v123456789/instagram_posts/sample_image.jpg"
-    sample_caption = "Este é um post de teste automatizado! #Teste #InstagramAPI"
-    # poster.post_to_instagram(sample_image_url, sample_caption)
-    print("Para testar, descomente as linhas acima e forneça credenciais válidas no .env")
+    sample_image_url = "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+    sample_caption = "Post de teste automatizado! #Teste #InstagramAPI"
+    poster.post_to_instagram(sample_image_url, sample_caption)
