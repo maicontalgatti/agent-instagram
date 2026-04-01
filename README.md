@@ -16,6 +16,7 @@ agent-instagram/
 │   ├── content_generator.py
 │   ├── image_generator.py
 │   ├── instagram_poster.py
+│   ├── instagram_tester.py
 │   ├── main.py
 │   └── news_fetcher.py
 ├── .env.example
@@ -69,6 +70,29 @@ Para executar o agente manualmente, navegue até o diretório `agent-instagram` 
 ```bash
 python src/main.py
 ```
+
+## Teste de Publicação no Instagram
+
+Se quiser validar somente a etapa de postagem (sem consumir créditos de NewsAPI/OpenAI), use o tester dedicado:
+
+```bash
+python src/instagram_tester.py
+```
+
+Esse script:
+- cria uma mídia com imagem pública fixa;
+- aguarda o processamento da mídia;
+- consulta `status_code` até `FINISHED`;
+- publica o post com `media_publish`.
+
+### Variáveis obrigatórias no `.env`
+
+```dotenv
+INSTAGRAM_ACCESS_TOKEN=seu_token_de_acesso_do_instagram
+INSTAGRAM_BUSINESS_ACCOUNT_ID=seu_id_de_conta_comercial_do_instagram
+```
+
+Se uma delas estiver ausente, o script encerra imediatamente.
 
 ## Agendamento Diário
 
