@@ -1,111 +1,114 @@
-# Agente de Postagem Automática no Instagram
+# Agente Instagram — conteúdo com voz, não só autopost
 
-Este projeto implementa um agente automatizado para pesquisar notícias de tecnologia, gerar imagens e legendas com inteligência artificial e postar diariamente no Instagram. O agente utiliza as seguintes APIs e serviços:
+Este projeto **não é um “bot que repete o mesmo tipo de post”**. Ele combina **seleção de notícias**, **três linhas editoriais** que alternam sozinhas, **gêneros de legenda** variados, **CTAs** que mudam e um **estilo visual fixo** (imagens claras, minimalistas, sem poluição típica de “wallpaper de tecnologia”).
 
-- **NewsAPI**: Para buscar notícias de tecnologia.
-- **OpenAI (DALL-E e GPT-4.1-mini)**: Para gerar imagens e legendas.
-- **Cloudinary**: Para hospedar as imagens geradas antes de postar no Instagram.
-- **Instagram Graph API**: Para realizar as postagens no Instagram.
+O fluxo usa **NewsAPI**, **OpenAI** (GPT para texto e DALL·E para imagem), **Cloudinary** (URL pública para o Instagram) e a **Instagram Graph API**, com postagem que **espera a mídia ficar pronta** antes de publicar.
 
-## Estrutura do Projeto
+---
+
+## O que agrega valor (em resumo)
+
+| Aspecto | Comportamento |
+|--------|----------------|
+| **Tipos de conteúdo** | Rotação automática entre **notícias**, **curiosidades** (“você sabia…”) e **tendências** — cada execução segue para o próximo tipo (estado em `post_mode_index.txt`). |
+| **Notícias** | Filtro por **palavras-chave** + escolha da melhor pauta por **score de impacto** (ex.: menções a IA, grandes empresas, “lançamento”, “novo”). Evita repostar o mesmo título com `used_titles.txt`. |
+| **Gêneros de legenda** (modo notícia) | Estilo escolhido **aleatoriamente** a cada post: **notícia direta**, **explicativo para leigos** ou **opinião provocativa** — o tom muda, o feed não parece monocórdico. |
+| **CTAs** | Um **chamado à ação** aleatório no fim da legenda (pergunta ou “comenta aqui”), para parecer mais conversa e menos robô. |
+| **Imagem** | Prompts orientados a **estética editorial minimalista**: poucos elementos, fundo claro/neutro, sem texto na arte; o código ainda **reforça esse estilo** em toda chamada ao DALL·E. |
+| **Segurança no console** | Respostas de API e URLs sensíveis passam por **sanitização** antes de ir para log/terminal (`safe_log`). |
+
+Modo **manual** (não altera a rotação): `python src/main.py news` | `curiosity` | `trend`.
+
+---
+
+## Estrutura do projeto
 
 ```
 agent-instagram/
 ├── src/
 │   ├── config.py
-│   ├── content_generator.py
-│   ├── image_generator.py
-│   ├── instagram_poster.py
-│   ├── instagram_tester.py
-│   ├── main.py
-│   └── news_fetcher.py
+│   ├── content_generator.py   # gêneros de legenda, CTAs, curiosidade/tendência
+│   ├── image_generator.py     # DALL·E + Cloudinary
+│   ├── instagram_poster.py    # Graph API + espera FINISHED
+│   ├── instagram_tester.py    # só testa postagem (imagem fixa)
+│   ├── main.py                # rotação + pipeline completo
+│   ├── news_fetcher.py        # keywords, relevância, score
+│   └── safe_log.py
+├── assets/                    # imagem padrão (ex.: modo teste)
 ├── .env.example
 ├── README.md
 └── requirements.txt
 ```
 
+Arquivos locais (gerados ao rodar; listados no `.gitignore`): `used_titles.txt`, `post_mode_index.txt`.
+
+---
+
 ## Configuração
 
-Para que o agente funcione corretamente, você precisará configurar as seguintes variáveis de ambiente:
+1. **Crie um `.env`** na raiz do projeto com base em `.env.example` (News API, OpenAI, Cloudinary, Instagram). Opcional: `DEFAULT_POST_IMAGE_URL` para o modo teste sem upload no Cloudinary.
 
-1.  **Crie um arquivo `.env`** na raiz do projeto (`agent-instagram/`) com base no arquivo `.env.example`:
+2. **Chaves e documentação**
+   - [NewsAPI](https://newsapi.org/)
+   - [OpenAI](https://platform.openai.com/)
+   - [Cloudinary](https://cloudinary.com/)
+   - [Instagram Platform](https://developers.facebook.com/docs/instagram-platform/getting-started)
 
-    ```dotenv
-    # News API Key (https://newsapi.org/)
-    NEWS_API_KEY=sua_chave_da_news_api
+---
 
-    # OpenAI API Key (https://platform.openai.com/)
-    OPENAI_API_KEY=sua_chave_da_openai_api
-
-    # Cloudinary Credentials (https://cloudinary.com/)
-    CLOUDINARY_CLOUD_NAME=seu_cloud_name_cloudinary
-    CLOUDINARY_API_KEY=sua_chave_da_cloudinary_api
-    CLOUDINARY_API_SECRET=seu_segredo_da_cloudinary_api
-
-    # Instagram Graph API Credentials (https://developers.facebook.com/)
-    INSTAGRAM_ACCESS_TOKEN=seu_token_de_acesso_do_instagram
-    INSTAGRAM_BUSINESS_ACCOUNT_ID=seu_id_de_conta_comercial_do_instagram
-    ```
-
-2.  **Obtenha as chaves das APIs:**
-    *   **NewsAPI**: Registre-se em [newsapi.org](https://newsapi.org/) para obter sua chave de API.
-    *   **OpenAI**: Obtenha sua chave de API em [platform.openai.com](https://platform.openai.com/).
-    *   **Cloudinary**: Crie uma conta em [cloudinary.com](https://cloudinary.com/) e encontre suas credenciais no dashboard.
-    *   **Instagram Graph API**: Este é o passo mais complexo, pois você precisará de uma conta do Instagram Business/Creator e uma página do Facebook conectada. Siga a documentação oficial do Facebook para desenvolvedores para obter um `INSTAGRAM_ACCESS_TOKEN` e o `INSTAGRAM_BUSINESS_ACCOUNT_ID`.
-        *   [Começar com a Plataforma Instagram](https://developers.facebook.com/docs/instagram-platform/getting-started)
-        *   [Configurar uma Conta Comercial no Instagram](https://www.facebook.com/business/help/898752980190821)
-
-## Instalação das Dependências
-
-Certifique-se de ter Python 3.x instalado. Em seguida, instale as dependências do projeto:
+## Instalação
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Execução do Agente
+---
 
-Para executar o agente manualmente, navegue até o diretório `agent-instagram` e execute o script `main.py`:
+## Execução
+
+**Fluxo completo com rotação automática** (recomendado no dia a dia):
 
 ```bash
+cd agent-instagram
 python src/main.py
 ```
 
-## Teste de Publicação no Instagram
+**Forçar um tipo** (testes):
 
-Se quiser validar somente a etapa de postagem (sem consumir créditos de NewsAPI/OpenAI), use o tester dedicado:
+```bash
+python src/main.py news
+python src/main.py curiosity
+python src/main.py trend
+```
+
+**Só validar postagem no Instagram** (imagem pública fixa, sem News/OpenAI de conteúdo):
 
 ```bash
 python src/instagram_tester.py
 ```
 
-Esse script:
-- cria uma mídia com imagem pública fixa;
-- aguarda o processamento da mídia;
-- consulta `status_code` até `FINISHED`;
-- publica o post com `media_publish`.
+Requer `INSTAGRAM_ACCESS_TOKEN` e `INSTAGRAM_BUSINESS_ACCOUNT_ID` no `.env`.
 
-### Variáveis obrigatórias no `.env`
+---
 
-```dotenv
-INSTAGRAM_ACCESS_TOKEN=seu_token_de_acesso_do_instagram
-INSTAGRAM_BUSINESS_ACCOUNT_ID=seu_id_de_conta_comercial_do_instagram
+## Agendamento (cron, Linux)
+
+Execute **sempre a partir da raiz do repositório** para que `used_titles.txt`, `post_mode_index.txt` e `assets/` resolvam corretamente. Use o Python do virtualenv.
+
+Exemplo (todo dia às 9h; ajuste caminhos):
+
+```cron
+0 9 * * * cd /var/www/agent-instagram && /var/www/agent-instagram/.venv/bin/python src/main.py >> /var/log/agent-instagram.log 2>&1
 ```
 
-Se uma delas estiver ausente, o script encerra imediatamente.
+No Windows, use o **Agendador de Tarefas** com o mesmo princípio: diretório de trabalho = pasta do projeto.
 
-## Agendamento Diário
+---
 
-O agente foi agendado para ser executado diariamente. No entanto, para que o agendamento funcione de forma persistente, você precisará garantir que o ambiente onde o agente está sendo executado (neste caso, o sandbox) esteja ativo ou que você configure um cron job em um servidor de sua preferência que possa acessar as variáveis de ambiente e executar o script `main.py`.
+## Checklist rápido
 
-**Nota:** O agendamento foi configurado para rodar diariamente às 09:00 (horário do sistema onde o agente está rodando). Você pode ajustar isso conforme sua necessidade.
+1. Conta Instagram **Business** ou **Creator** ligada a uma **Página do Facebook**.
+2. `.env` preenchido com todas as variáveis necessárias.
+3. Primeiro teste opcional com `instagram_tester.py`; depois `python src/main.py`.
 
-## Próximos Passos
-
-1.  Crie sua conta no Instagram e converta-a para uma conta Business ou Creator.
-2.  Conecte sua conta do Instagram a uma página do Facebook.
-3.  Obtenha as credenciais necessárias para a Instagram Graph API.
-4.  Preencha o arquivo `.env` com todas as suas chaves de API.
-5.  Execute o agente para testar a postagem automática.
-
-Se tiver alguma dúvida ou precisar de ajuda com a configuração, por favor, me informe!
+Se algo falhar na Graph API, confira token, permissões e se a imagem está em **URL HTTPS pública** (Cloudinary ou variável `DEFAULT_POST_IMAGE_URL` no modo teste).
