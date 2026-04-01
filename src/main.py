@@ -2,6 +2,7 @@ from pathlib import Path
 
 from config import DEFAULT_POST_IMAGE_URL
 from instagram_poster import InstagramPoster
+from safe_log import sanitize_url_for_log
 
 # True = não chama News API, OpenAI nem DALL-E; só testa postagem (Cloudinary opcional).
 USE_MOCK_FOR_POST_TEST = False
@@ -88,7 +89,7 @@ def main():
     if not dalle_image_url:
         print("Falha ao gerar imagem com DALL-E. Encerrando.")
         return
-    print(f"URL da imagem gerada pelo DALL-E: {dalle_image_url}")
+    print(f"URL da imagem gerada pelo DALL-E: {sanitize_url_for_log(dalle_image_url)}")
 
     # 6. Fazer upload da imagem para o Cloudinary
     print("Fazendo upload da imagem para o Cloudinary...")
@@ -97,7 +98,7 @@ def main():
     if not cloudinary_url:
         print("Falha ao fazer upload da imagem para o Cloudinary. Encerrando.")
         return
-    print(f"URL da imagem no Cloudinary: {cloudinary_url}")
+    print(f"URL da imagem no Cloudinary: {sanitize_url_for_log(cloudinary_url)}")
 
     # 7. Postar no Instagram
     print("Postando no Instagram...")

@@ -1,8 +1,10 @@
+import json
 import time
 
 import requests
 
 from config import INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID
+from safe_log import format_http_body_for_log, safe_exc, sanitize_json_obj
 
 # Alinhado ao script de teste que funcionou (Graph API v18.0).
 GRAPH_API_VERSION = "v18.0"
@@ -27,17 +29,20 @@ class InstagramPoster:
         response = None
         try:
             response = requests.post(endpoint, data=payload)
-            print(f"Resposta criação de mídia: {response.text}")
+            print(f"Resposta criação de mídia: {format_http_body_for_log(response.text)}")
             response.raise_for_status()
             data = response.json()
             return data.get("id")
         except requests.exceptions.RequestException as e:
-            print(f"Erro ao criar objeto de mídia: {e}")
+            print(f"Erro ao criar objeto de mídia: {safe_exc(e)}")
             if response is not None:
                 try:
-                    print(f"Resposta da API: {response.json()}")
+                    print(
+                        "Resposta da API:",
+                        json.dumps(sanitize_json_obj(response.json()), ensure_ascii=False),
+                    )
                 except Exception:
-                    print(f"Corpo bruto: {response.text}")
+                    print(f"Corpo bruto: {format_http_body_for_log(response.text)}")
             return None
 
     def wait_until_media_ready(self, creation_id):
@@ -55,11 +60,14 @@ class InstagramPoster:
         for attempt in range(STATUS_POLL_MAX_ATTEMPTS):
             try:
                 status_res = requests.get(status_url, params=status_params)
-                print(f"Status da mídia (tentativa {attempt + 1}/{STATUS_POLL_MAX_ATTEMPTS}): {status_res.text}")
+                print(
+                    f"Status da mídia (tentativa {attempt + 1}/{STATUS_POLL_MAX_ATTEMPTS}): "
+                    f"{format_http_body_for_log(status_res.text)}"
+                )
                 status_res.raise_for_status()
                 status_json = status_res.json()
             except (requests.exceptions.RequestException, ValueError) as e:
-                print(f"Erro ao consultar status da mídia: {e}")
+                print(f"Erro ao consultar status da mídia: {safe_exc(e)}")
                 return False
 
             status_code = status_json.get("status_code")
@@ -83,17 +91,20 @@ class InstagramPoster:
         response = None
         try:
             response = requests.post(endpoint, data=payload)
-            print(f"Resposta publicação: {response.text}")
+            print(f"Resposta publicação: {format_http_body_for_log(response.text)}")
             response.raise_for_status()
             data = response.json()
             return data.get("id")
         except requests.exceptions.RequestException as e:
-            print(f"Erro ao publicar mídia: {e}")
+            print(f"Erro ao publicar mídia: {safe_exc(e)}")
             if response is not None:
                 try:
-                    print(f"Resposta da API: {response.json()}")
+                    print(
+                        "Resposta da API:",
+                        json.dumps(sanitize_json_obj(response.json()), ensure_ascii=False),
+                    )
                 except Exception:
-                    print(f"Corpo bruto: {response.text}")
+                    print(f"Corpo bruto: {format_http_body_for_log(response.text)}")
             return None
 
     def post_to_instagram(self, image_url, caption):

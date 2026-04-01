@@ -1,5 +1,7 @@
 from openai import OpenAI
+
 from config import OPENAI_API_KEY
+from safe_log import safe_exc
 
 class ContentGenerator:
     def __init__(self):
@@ -24,31 +26,46 @@ Legenda:"""
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            print(f"Erro ao gerar legenda: {e}")
+            print(f"Erro ao gerar legenda: {safe_exc(e)}")
             return """
             Confira as últimas notícias de tecnologia! Fique por dentro das inovações e tendências que estão moldando o futuro. #Tecnologia #Inovação #DesenvolvimentoDeSoftware
             """
 
     def generate_image_prompt(self, caption):
-        prompt = f"""Com base na seguinte legenda do Instagram sobre tecnologia, crie um prompt detalhado para gerar uma imagem visualmente atraente e relevante usando DALL-E. O prompt deve ser descritivo e focar em elementos visuais.
+        prompt = f"""Legenda do post (tecnologia): {caption}
 
-Legenda: {caption}
+Escreva um único prompt em português para o DALL-E gerar a imagem de capa deste post.
 
-Prompt para imagem:"""
+Regras obrigatórias do prompt:
+- Visual simples, claro e com pouca informação: muito espaço vazio, poucos objetos, uma ideia central.
+- Evite: desenhos aleatórios, ícones espalhados, circuitos, hologramas, código flutuando, robôs caricatos, colagem futurista genérica, poluição visual.
+- Prefira: fotografia realista minimalista OU ilustração flat muito enxuta; fundo claro ou neutro; luz suave; paleta calma (branco, bege, cinza-claro, no máximo um acento de cor).
+- Proibido texto, logotipos ou letras na imagem.
+
+Responda só com o prompt da imagem (2 a 4 frases curtas), sem aspas nem comentários."""
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4.1-mini", # Using a more capable model for better content generation
                 messages=[
-                    {"role": "system", "content": "Você é um gerador de prompts de imagem para DALL-E, especializado em conceitos de tecnologia."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": (
+                            "Você cria prompts para DALL-E com estética editorial minimalista: "
+                            "limpo, respirável, poucos elementos, nada de 'wallpaper de tecnologia' genérico."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
                 ],
-                max_tokens=100
+                max_tokens=180,
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            print(f"Erro ao gerar prompt de imagem: {e}")
-            return """Uma imagem abstrata representando tecnologia, com elementos de código, circuitos e luzes brilhantes, em tons de azul e roxo.
-            """
+            print(f"Erro ao gerar prompt de imagem: {safe_exc(e)}")
+            return (
+                "Fotografia minimalista em tons claros: uma mesa de madeira clara com um único laptop "
+                "fechado e uma xícara de café, luz natural suave pela janela, fundo desfocado neutro, "
+                "muito espaço negativo, estética calma e editorial, sem pessoas e sem texto na imagem."
+            )
 
 if __name__ == "__main__":
     generator = ContentGenerator()

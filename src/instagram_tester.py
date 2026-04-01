@@ -1,15 +1,18 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import os
 import time
+
 import requests
+
+from safe_log import credentials_loaded_hint, format_http_body_for_log
 
 ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
 IG_ID = os.getenv("INSTAGRAM_BUSINESS_ACCOUNT_ID")
 
-print("ACCESS_TOKEN:", ACCESS_TOKEN[:20] if ACCESS_TOKEN else None)
-print("IG_ID:", IG_ID)
+print(credentials_loaded_hint(ACCESS_TOKEN, IG_ID))
 
 if not ACCESS_TOKEN or not IG_ID:
     print("ACCESS_TOKEN ou IG_ID não carregados do .env")
@@ -28,7 +31,7 @@ media_payload = {
 }
 
 media_res = requests.post(media_url, data=media_payload)
-print("MEDIA RESPONSE:", media_res.text)
+print("MEDIA RESPONSE:", format_http_body_for_log(media_res.text))
 
 try:
     media_json = media_res.json()
@@ -55,7 +58,7 @@ status_params = {
 status_code = None
 for tentativa in range(10):
     status_res = requests.get(status_url, params=status_params)
-    print("STATUS RESPONSE:", status_res.text)
+    print("STATUS RESPONSE:", format_http_body_for_log(status_res.text))
     try:
         status_json = status_res.json()
     except Exception:
@@ -82,7 +85,7 @@ publish_payload = {
 }
 
 publish_res = requests.post(publish_url, data=publish_payload)
-print("PUBLISH RESPONSE:", publish_res.text)
+print("PUBLISH RESPONSE:", format_http_body_for_log(publish_res.text))
 
 try:
     publish_json = publish_res.json()

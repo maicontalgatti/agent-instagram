@@ -1,5 +1,7 @@
 from newsapi import NewsApiClient
+
 from config import NEWS_API_KEY
+from safe_log import safe_exc
 
 class NewsFetcher:
     def __init__(self):
@@ -16,7 +18,7 @@ class NewsFetcher:
             articles = top_headlines.get('articles', [])
             return articles
         except Exception as e:
-            print(f"Erro ao buscar notícias: {e}")
+            print(f"Erro ao buscar notícias: {safe_exc(e)}")
             return []
 
 if __name__ == '__main__':
