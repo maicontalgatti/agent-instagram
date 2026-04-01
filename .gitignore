@@ -1,0 +1,5 @@
+# Títulos já postados (evita repetição local)
+used_titles.txt
+
+# Índice da rotação notícias / curiosidades / tendências
+post_mode_index.txt
