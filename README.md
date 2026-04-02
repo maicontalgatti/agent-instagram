@@ -1,114 +1,127 @@
-# Agente Instagram — conteúdo com voz, não só autopost
+# Agente Instagram — seleção editorial multi-fonte
 
-Este projeto **não é um “bot que repete o mesmo tipo de post”**. Ele combina **seleção de notícias**, **três linhas editoriais** que alternam sozinhas, **gêneros de legenda** variados, **CTAs** que mudam e um **estilo visual fixo** (imagens claras, minimalistas, sem poluição típica de “wallpaper de tecnologia”).
+Pipeline **production-ready** que **varre várias fontes tech** (RSS + NewsAPI), **normaliza** artigos, **deduplica**, **classifica tema**, **pontua relevância e frescor**, escolhe a **melhor pauta do momento**, gera **legenda** e **imagem** (DALL·E + Cloudinary) e publica no **Instagram** (Graph API com espera `FINISHED`).
 
-O fluxo usa **NewsAPI**, **OpenAI** (GPT para texto e DALL·E para imagem), **Cloudinary** (URL pública para o Instagram) e a **Instagram Graph API**, com postagem que **espera a mídia ficar pronta** antes de publicar.
-
----
-
-## O que agrega valor (em resumo)
-
-| Aspecto | Comportamento |
-|--------|----------------|
-| **Tipos de conteúdo** | Rotação automática entre **notícias**, **curiosidades** (“você sabia…”) e **tendências** — cada execução segue para o próximo tipo (estado em `post_mode_index.txt`). |
-| **Notícias** | Filtro por **palavras-chave** + escolha da melhor pauta por **score de impacto** (ex.: menções a IA, grandes empresas, “lançamento”, “novo”). Evita repostar o mesmo título com `used_titles.txt`. |
-| **Gêneros de legenda** (modo notícia) | Estilo escolhido **aleatoriamente** a cada post: **notícia direta**, **explicativo para leigos** ou **opinião provocativa** — o tom muda, o feed não parece monocórdico. |
-| **CTAs** | Um **chamado à ação** aleatório no fim da legenda (pergunta ou “comenta aqui”), para parecer mais conversa e menos robô. |
-| **Imagem** | Prompts orientados a **estética editorial minimalista**: poucos elementos, fundo claro/neutro, sem texto na arte; o código ainda **reforça esse estilo** em toda chamada ao DALL·E. |
-| **Segurança no console** | Respostas de API e URLs sensíveis passam por **sanitização** antes de ir para log/terminal (`safe_log`). |
-
-Modo **manual** (não altera a rotação): `python src/main.py news` | `curiosity` | `trend`.
+Não é só “pegar uma notícia”: o sistema prioriza **recência**, **tema** (IA, big tech, segurança…), **força do título**, **bônus de fonte** e evita **repetir URLs/títulos** já postados (`data/editorial_state.json`).
 
 ---
 
-## Estrutura do projeto
+## Arquitetura (`src/`)
 
 ```
-agent-instagram/
-├── src/
-│   ├── config.py
-│   ├── content_generator.py   # gêneros de legenda, CTAs, curiosidade/tendência
-│   ├── image_generator.py     # DALL·E + Cloudinary
-│   ├── instagram_poster.py    # Graph API + espera FINISHED
-│   ├── instagram_tester.py    # só testa postagem (imagem fixa)
-│   ├── main.py                # rotação + pipeline completo
-│   ├── news_fetcher.py        # keywords, relevância, score
-│   └── safe_log.py
-├── assets/                    # imagem padrão (ex.: modo teste)
-├── .env.example
-├── README.md
-└── requirements.txt
+src/
+  config.py                 # Env + pesos, limites, query NewsAPI, idioma
+  main.py                   # CLI: --mode select_and_post (padrão), rotate, mock_post…
+  models/article.py         # Formato padronizado de artigo
+  sources/
+    source_registry.py      # Lista central de feeds RSS (TechCrunch, Verge, Wired…)
+    rss_fetcher.py
+    newsapi_fetcher.py
+    site_fetcher.py         # Stub para scraping futuro
+    keyword_filter.py       # Filtro legado (modo rotate/news)
+    normalize.py
+  ranking/
+    deduplicator.py         # URL + título similar
+    topic_classifier.py     # ai, big_tech, cybersecurity…
+    freshness.py
+    scorer.py               # Score editorial configurável
+  content/
+    caption_generator.py    # Legenda tech + CTAs
+    image_prompt_builder.py # Prompt rico para DALL·E (composição + estética)
+    post_builder.py
+    image_generator.py      # DALL·E + Cloudinary
+  publish/
+    instagram_poster.py
+  pipeline/
+    select_and_post.py      # Fluxo principal select_and_post
+  storage/
+    state_store.py          # JSON: URLs/títulos já postados
+    cache.py
+  legacy/
+    rotation.py             # Modo antigo: rotação news/curiosity/trend
+  utils/
+    logger.py, time_utils.py, text_utils.py, safe_log.py
+  instagram_tester.py       # Só testa API Instagram (imagem fixa)
 ```
 
-Arquivos locais (gerados ao rodar; listados no `.gitignore`): `used_titles.txt`, `post_mode_index.txt`.
+Se **uma fonte falhar**, as demais continuam (logs de aviso).
 
 ---
 
-## Configuração
+## Requisitos
 
-1. **Crie um `.env`** na raiz do projeto com base em `.env.example` (News API, OpenAI, Cloudinary, Instagram). Opcional: `DEFAULT_POST_IMAGE_URL` para o modo teste sem upload no Cloudinary.
-
-2. **Chaves e documentação**
-   - [NewsAPI](https://newsapi.org/)
-   - [OpenAI](https://platform.openai.com/)
-   - [Cloudinary](https://cloudinary.com/)
-   - [Instagram Platform](https://developers.facebook.com/docs/instagram-platform/getting-started)
-
----
-
-## Instalação
+- Python 3.10+
+- Conta Instagram **Business/Creator** + **Página Facebook** + token Graph API
+- Chaves: **OpenAI** (obrigatório para legenda/imagem), **Cloudinary**, **Instagram**; **NewsAPI** opcional mas recomendada (mais matéria).
 
 ```bash
 pip install -r requirements.txt
 ```
 
+Copie `.env.example` → `.env` e preencha.
+
 ---
 
-## Execução
+## Uso principal (recomendado)
 
-**Fluxo completo com rotação automática** (recomendado no dia a dia):
+**Pipeline completo** — busca multi-fonte, ranking, geração e postagem:
 
 ```bash
 cd agent-instagram
-python src/main.py
+python src/main.py --mode select_and_post
 ```
 
-**Forçar um tipo** (testes):
+**Dry-run** — executa coleta, dedup, score, top 5, escolhe a melhor e gera **legenda + prompt de imagem**; **não** chama DALL·E nem Instagram:
 
 ```bash
-python src/main.py news
-python src/main.py curiosity
-python src/main.py trend
+python src/main.py --mode select_and_post --dry-run
 ```
 
-**Só validar postagem no Instagram** (imagem pública fixa, sem News/OpenAI de conteúdo):
+Requer `OPENAI_API_KEY` também no dry-run (legenda e prompt vêm do GPT). Sem ela, o comando encerra com erro explícito.
 
-```bash
-python src/instagram_tester.py
-```
+---
 
-Requer `INSTAGRAM_ACCESS_TOKEN` e `INSTAGRAM_BUSINESS_ACCOUNT_ID` no `.env`.
+## Modos legados
+
+| Modo | Comando |
+|------|---------|
+| Rotação automática (news → curiosity → trend) | `python src/main.py --mode rotate` |
+| Só notícia (NewsAPI + filtro keywords) | `python src/main.py --mode news` |
+| Curiosidade / tendência | `python src/main.py --mode curiosity` ou `--mode trend` |
+| Só testar Instagram (sem OpenAI de conteúdo) | `python src/main.py --mode mock_post` |
 
 ---
 
 ## Agendamento (cron, Linux)
 
-Execute **sempre a partir da raiz do repositório** para que `used_titles.txt`, `post_mode_index.txt` e `assets/` resolvam corretamente. Use o Python do virtualenv.
-
-Exemplo (todo dia às 9h; ajuste caminhos):
-
 ```cron
-0 9 * * * cd /var/www/agent-instagram && /var/www/agent-instagram/.venv/bin/python src/main.py >> /var/log/agent-instagram.log 2>&1
+0 9 * * * cd /caminho/agent-instagram && /caminho/agent-instagram/.venv/bin/python src/main.py --mode select_and_post >> /var/log/agent-instagram.log 2>&1
 ```
-
-No Windows, use o **Agendador de Tarefas** com o mesmo princípio: diretório de trabalho = pasta do projeto.
 
 ---
 
-## Checklist rápido
+## Configuração avançada
 
-1. Conta Instagram **Business** ou **Creator** ligada a uma **Página do Facebook**.
-2. `.env` preenchido com todas as variáveis necessárias.
-3. Primeiro teste opcional com `instagram_tester.py`; depois `python src/main.py`.
+- **Fontes RSS:** edite `src/sources/source_registry.py` (URLs de feed).
+- **Pesos e janela de idade:** `src/config.py` ou variáveis no `.env` (ver `.env.example`).
+- **Estado de postagens:** `data/editorial_state.json` (criado automaticamente; no `.gitignore`).
 
-Se algo falhar na Graph API, confira token, permissões e se a imagem está em **URL HTTPS pública** (Cloudinary ou variável `DEFAULT_POST_IMAGE_URL` no modo teste).
+---
+
+## Teste rápido só Instagram
+
+```bash
+python src/instagram_tester.py
+```
+
+---
+
+## Critério de sucesso
+
+Com `.env` válido:
+
+```bash
+python src/main.py --mode select_and_post
+```
+
+→ busca em paralelo (RSS + NewsAPI), ranqueia, gera conteúdo e publica, registrando o que já foi usado.

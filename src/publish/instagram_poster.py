@@ -3,10 +3,9 @@ import time
 
 import requests
 
-from config import INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID
-from safe_log import format_http_body_for_log, safe_exc, sanitize_json_obj
+import config
+from utils.safe_log import format_http_body_for_log, safe_exc, sanitize_json_obj
 
-# Alinhado ao script de teste que funcionou (Graph API v18.0).
 GRAPH_API_VERSION = "v18.0"
 MEDIA_INITIAL_WAIT_SEC = 10
 STATUS_POLL_INTERVAL_SEC = 3
@@ -14,12 +13,12 @@ STATUS_POLL_MAX_ATTEMPTS = 10
 
 
 class InstagramPoster:
-    def __init__(self):
-        self.access_token = INSTAGRAM_ACCESS_TOKEN
-        self.ig_id = INSTAGRAM_BUSINESS_ACCOUNT_ID
+    def __init__(self) -> None:
+        self.access_token = config.INSTAGRAM_ACCESS_TOKEN
+        self.ig_id = config.INSTAGRAM_BUSINESS_ACCOUNT_ID
         self.graph_base = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
-    def create_media_object(self, image_url, caption):
+    def create_media_object(self, image_url: str, caption: str):
         endpoint = f"{self.graph_base}/{self.ig_id}/media"
         payload = {
             "image_url": image_url,
@@ -28,7 +27,7 @@ class InstagramPoster:
         }
         response = None
         try:
-            response = requests.post(endpoint, data=payload)
+            response = requests.post(endpoint, data=payload, timeout=60)
             print(f"Resposta criação de mídia: {format_http_body_for_log(response.text)}")
             response.raise_for_status()
             data = response.json()
@@ -45,8 +44,7 @@ class InstagramPoster:
                     print(f"Corpo bruto: {format_http_body_for_log(response.text)}")
             return None
 
-    def wait_until_media_ready(self, creation_id):
-        """Aguarda o processamento assíncrono da mídia antes de publicar."""
+    def wait_until_media_ready(self, creation_id: str) -> bool:
         print("Aguardando processamento da mídia...")
         time.sleep(MEDIA_INITIAL_WAIT_SEC)
 
@@ -59,7 +57,7 @@ class InstagramPoster:
         status_code = None
         for attempt in range(STATUS_POLL_MAX_ATTEMPTS):
             try:
-                status_res = requests.get(status_url, params=status_params)
+                status_res = requests.get(status_url, params=status_params, timeout=30)
                 print(
                     f"Status da mídia (tentativa {attempt + 1}/{STATUS_POLL_MAX_ATTEMPTS}): "
                     f"{format_http_body_for_log(status_res.text)}"
@@ -82,7 +80,7 @@ class InstagramPoster:
         print("A mídia não ficou pronta a tempo (status_code != FINISHED).")
         return False
 
-    def publish_media(self, creation_id):
+    def publish_media(self, creation_id: str):
         endpoint = f"{self.graph_base}/{self.ig_id}/media_publish"
         payload = {
             "creation_id": creation_id,
@@ -90,7 +88,7 @@ class InstagramPoster:
         }
         response = None
         try:
-            response = requests.post(endpoint, data=payload)
+            response = requests.post(endpoint, data=payload, timeout=60)
             print(f"Resposta publicação: {format_http_body_for_log(response.text)}")
             response.raise_for_status()
             data = response.json()
@@ -107,7 +105,7 @@ class InstagramPoster:
                     print(f"Corpo bruto: {format_http_body_for_log(response.text)}")
             return None
 
-    def post_to_instagram(self, image_url, caption):
+    def post_to_instagram(self, image_url: str, caption: str) -> bool:
         print("Criando objeto de mídia...")
         creation_id = self.create_media_object(image_url, caption)
         if not creation_id:
@@ -127,10 +125,3 @@ class InstagramPoster:
 
         print("Falha ao publicar no Instagram.")
         return False
-
-
-if __name__ == "__main__":
-    poster = InstagramPoster()
-    sample_image_url = "https://res.cloudinary.com/demo/image/upload/sample.jpg"
-    sample_caption = "Post de teste automatizado! #Teste #InstagramAPI"
-    poster.post_to_instagram(sample_image_url, sample_caption)

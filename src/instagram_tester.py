@@ -7,7 +7,7 @@ import time
 
 import requests
 
-from safe_log import credentials_loaded_hint, format_http_body_for_log
+from utils.safe_log import credentials_loaded_hint, format_http_body_for_log
 
 ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
 IG_ID = os.getenv("INSTAGRAM_BUSINESS_ACCOUNT_ID")

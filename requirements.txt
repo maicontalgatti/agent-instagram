@@ -3,3 +3,5 @@ newsapi-python
 openai
 python-dotenv
 cloudinary
+feedparser
+python-dateutil
