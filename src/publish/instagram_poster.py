@@ -10,6 +10,21 @@ GRAPH_API_VERSION = "v18.0"
 MEDIA_INITIAL_WAIT_SEC = 10
 STATUS_POLL_INTERVAL_SEC = 3
 STATUS_POLL_MAX_ATTEMPTS = 10
+GRAPH_POST_RETRIES = 4
+GRAPH_POST_BACKOFF_SEC = 5
+
+
+def _should_retry_graph_response(status_code: int, body_json: dict | None) -> bool:
+    if status_code >= 500:
+        return True
+    if not body_json:
+        return status_code >= 500
+    err = body_json.get("error") or {}
+    if err.get("is_transient"):
+        return True
+    if err.get("code") in (1, 2, 4):  # comuns em falhas temporárias / rate
+        return True
+    return False
 
 
 class InstagramPoster:
@@ -25,24 +40,47 @@ class InstagramPoster:
             "caption": caption,
             "access_token": self.access_token,
         }
-        response = None
-        try:
-            response = requests.post(endpoint, data=payload, timeout=60)
-            print(f"Resposta criação de mídia: {format_http_body_for_log(response.text)}")
-            response.raise_for_status()
-            data = response.json()
-            return data.get("id")
-        except requests.exceptions.RequestException as e:
-            print(f"Erro ao criar objeto de mídia: {safe_exc(e)}")
-            if response is not None:
+        last_response = None
+        for attempt in range(1, GRAPH_POST_RETRIES + 1):
+            try:
+                response = requests.post(endpoint, data=payload, timeout=90)
+                last_response = response
+                print(f"Resposta criação de mídia: {format_http_body_for_log(response.text)}")
                 try:
+                    data = response.json()
+                except ValueError:
+                    data = {}
+                media_id = data.get("id")
+                if media_id:
+                    return media_id
+                if _should_retry_graph_response(response.status_code, data) and attempt < GRAPH_POST_RETRIES:
                     print(
-                        "Resposta da API:",
-                        json.dumps(sanitize_json_obj(response.json()), ensure_ascii=False),
+                        f"Retentativa criação de mídia {attempt}/{GRAPH_POST_RETRIES} "
+                        f"(erro possivelmente temporário da Meta)…"
                     )
-                except Exception:
-                    print(f"Corpo bruto: {format_http_body_for_log(response.text)}")
-            return None
+                    time.sleep(GRAPH_POST_BACKOFF_SEC * attempt)
+                    continue
+                print(f"Erro ao criar objeto de mídia (HTTP {response.status_code})")
+                print(
+                    "Resposta da API:",
+                    json.dumps(sanitize_json_obj(data), ensure_ascii=False),
+                )
+                return None
+            except requests.exceptions.RequestException as e:
+                print(f"Erro de rede ao criar mídia: {safe_exc(e)}")
+                if attempt < GRAPH_POST_RETRIES:
+                    time.sleep(GRAPH_POST_BACKOFF_SEC * attempt)
+                    continue
+                if last_response is not None:
+                    try:
+                        print(
+                            "Resposta da API:",
+                            json.dumps(sanitize_json_obj(last_response.json()), ensure_ascii=False),
+                        )
+                    except Exception:
+                        print(f"Corpo bruto: {format_http_body_for_log(last_response.text)}")
+                return None
+        return None
 
     def wait_until_media_ready(self, creation_id: str) -> bool:
         print("Aguardando processamento da mídia...")
@@ -86,24 +124,47 @@ class InstagramPoster:
             "creation_id": creation_id,
             "access_token": self.access_token,
         }
-        response = None
-        try:
-            response = requests.post(endpoint, data=payload, timeout=60)
-            print(f"Resposta publicação: {format_http_body_for_log(response.text)}")
-            response.raise_for_status()
-            data = response.json()
-            return data.get("id")
-        except requests.exceptions.RequestException as e:
-            print(f"Erro ao publicar mídia: {safe_exc(e)}")
-            if response is not None:
+        last_response = None
+        for attempt in range(1, GRAPH_POST_RETRIES + 1):
+            try:
+                response = requests.post(endpoint, data=payload, timeout=90)
+                last_response = response
+                print(f"Resposta publicação: {format_http_body_for_log(response.text)}")
                 try:
+                    data = response.json()
+                except ValueError:
+                    data = {}
+                pub_id = data.get("id")
+                if pub_id:
+                    return pub_id
+                if _should_retry_graph_response(response.status_code, data) and attempt < GRAPH_POST_RETRIES:
                     print(
-                        "Resposta da API:",
-                        json.dumps(sanitize_json_obj(response.json()), ensure_ascii=False),
+                        f"Retentativa publicação {attempt}/{GRAPH_POST_RETRIES} "
+                        f"(erro possivelmente temporário da Meta)…"
                     )
-                except Exception:
-                    print(f"Corpo bruto: {format_http_body_for_log(response.text)}")
-            return None
+                    time.sleep(GRAPH_POST_BACKOFF_SEC * attempt)
+                    continue
+                print(f"Erro ao publicar mídia (HTTP {response.status_code})")
+                print(
+                    "Resposta da API:",
+                    json.dumps(sanitize_json_obj(data), ensure_ascii=False),
+                )
+                return None
+            except requests.exceptions.RequestException as e:
+                print(f"Erro de rede ao publicar: {safe_exc(e)}")
+                if attempt < GRAPH_POST_RETRIES:
+                    time.sleep(GRAPH_POST_BACKOFF_SEC * attempt)
+                    continue
+                if last_response is not None:
+                    try:
+                        print(
+                            "Resposta da API:",
+                            json.dumps(sanitize_json_obj(last_response.json()), ensure_ascii=False),
+                        )
+                    except Exception:
+                        print(f"Corpo bruto: {format_http_body_for_log(last_response.text)}")
+                return None
+        return None
 
     def post_to_instagram(self, image_url: str, caption: str) -> bool:
         print("Criando objeto de mídia...")
