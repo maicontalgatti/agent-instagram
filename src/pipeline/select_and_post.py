@@ -25,6 +25,7 @@ setup_logging()
 
 
 def _gather_articles() -> tuple[list[Article], dict[str, int]]:
+    log = logging.getLogger(__name__)
     per_source: dict[str, int] = {}
     merged: list[Article] = []
 
@@ -33,7 +34,7 @@ def _gather_articles() -> tuple[list[Article], dict[str, int]]:
             try:
                 batch = fetch_rss_source(src)
             except Exception as e:
-                logger.warning("Fonte RSS %s erro: %s", src.id, e)
+                log.warning("Fonte RSS %s erro: %s", src.id, e)
                 batch = []
             per_source[src.id] = len(batch)
             merged.extend(batch)
@@ -41,7 +42,7 @@ def _gather_articles() -> tuple[list[Article], dict[str, int]]:
     try:
         api_batch = fetch_newsapi()
     except Exception as e:
-        logger.warning("NewsAPI erro: %s", e)
+        log.warning("NewsAPI erro: %s", e)
         api_batch = []
     per_source["newsapi"] = len(api_batch)
     merged.extend(api_batch)
@@ -103,24 +104,27 @@ def run_select_and_post(*, dry_run: bool = False) -> bool:
     log.info("Legenda gerada (%s chars)", len(caption))
     print(f"Legenda (preview): {caption[:500]}...")
 
-    image_prompt = builder.build_image_prompt(best, caption)
-    log.info("Prompt de imagem gerado (%s chars)", len(image_prompt))
-    print(f"Prompt de imagem: {image_prompt[:300]}...")
-
     if dry_run:
-        log.info("Dry-run: não gera imagem nem publica.")
+        log.info("Dry-run: pipeline visual e publicação não executados.")
         return True
 
-    ig = ImageGenerator()
-    dalle_url = ig.generate_image(image_prompt)
-    if not dalle_url:
-        log.error("Falha DALL-E.")
-        return False
-    log.info("DALL-E URL: %s", sanitize_url_for_log(dalle_url))
+    from visual.image_pipeline import build_post_image
 
-    cloud_url = ig.upload_image_to_cloudinary(dalle_url)
+    visual = build_post_image(best)
+    if not visual:
+        log.error("Falha no pipeline visual (notícia / marca / IA + template).")
+        return False
+    log.info(
+        "Visual: fonte=%s quality=%s tempo=%ss",
+        visual.source.value,
+        visual.quality_score,
+        visual.duration_sec,
+    )
+
+    ig = ImageGenerator()
+    cloud_url = ig.upload_local_file_to_cloudinary(str(visual.path))
     if not cloud_url:
-        log.error("Falha Cloudinary.")
+        log.error("Falha Cloudinary (upload arquivo local).")
         return False
     log.info("Cloudinary URL: %s", sanitize_url_for_log(cloud_url))
 

@@ -8,7 +8,6 @@ from pathlib import Path
 
 from content.caption_generator import CaptionGenerator
 from content.image_generator import ImageGenerator
-from content.post_builder import PostBuilder
 from models.article import Article
 from publish.instagram_poster import InstagramPoster
 from ranking.scorer import score_and_sort
@@ -60,32 +59,41 @@ def record_used_title(path: Path, title: str) -> None:
 
 def run_image_post_pipeline(
     caption: str,
-    builder: PostBuilder,
     image_generator: ImageGenerator,
     instagram_poster: InstagramPoster,
     article_stub: Article | None = None,
 ) -> bool:
+    from ranking.topic_classifier import classify_topic
     from utils.safe_log import sanitize_url_for_log
+    from visual.image_pipeline import build_post_image
 
     stub: Article = article_stub or {
         "title": caption[:200],
         "description": caption,
         "url": "",
-        "topic": "tech",
+        "topic": classify_topic(
+            {
+                "title": caption,
+                "description": caption,
+            }
+        ),
         "source": "legacy",
+        "image_url": None,
     }
-    print("Gerando prompt para a imagem...")
-    image_prompt = builder.build_image_prompt(stub, caption)
-    print(f"Prompt de imagem gerado: {image_prompt}")
+    if "topic" not in stub or not stub.get("topic"):
+        stub["topic"] = classify_topic(stub)  # type: ignore[arg-type]
 
-    print("Gerando imagem com DALL-E...")
-    dalle_image_url = image_generator.generate_image(image_prompt)
-    if not dalle_image_url:
-        print("Falha ao gerar imagem com DALL-E.")
+    print("Pipeline visual (notícia → marca → IA → template)...")
+    visual = build_post_image(stub)
+    if not visual:
+        print("Falha no pipeline visual.")
         return False
-    print(f"URL DALL-E: {sanitize_url_for_log(dalle_image_url)}")
+    print(
+        f"Visual: fonte={visual.source.value} | qualidade≈{visual.quality_score} | "
+        f"{visual.duration_sec}s"
+    )
 
-    cloudinary_url = image_generator.upload_image_to_cloudinary(dalle_image_url)
+    cloudinary_url = image_generator.upload_local_file_to_cloudinary(str(visual.path))
     if not cloudinary_url:
         print("Falha Cloudinary.")
         return False
@@ -100,7 +108,6 @@ def post_news_legacy(
     caption_gen: CaptionGenerator,
     image_generator: ImageGenerator,
 ) -> None:
-    builder = PostBuilder()
     used = load_used_titles(USED_TITLES_PATH)
 
     articles = fetch_newsapi()
@@ -123,7 +130,7 @@ def post_news_legacy(
     print(f"Legenda: {caption[:400]}...")
 
     success = run_image_post_pipeline(
-        caption, builder, image_generator, instagram_poster, article_stub=selected_article
+        caption, image_generator, instagram_poster, article_stub=selected_article
     )
     if success and title_key:
         record_used_title(USED_TITLES_PATH, title_key)
@@ -135,9 +142,8 @@ def post_curiosity_legacy(
     caption_gen: CaptionGenerator,
     image_generator: ImageGenerator,
 ) -> None:
-    builder = PostBuilder()
     caption = caption_gen.generate_curiosity_caption()
-    success = run_image_post_pipeline(caption, builder, image_generator, instagram_poster)
+    success = run_image_post_pipeline(caption, image_generator, instagram_poster)
     if not success:
         print("Falha na postagem.")
 
@@ -147,9 +153,8 @@ def post_trend_legacy(
     caption_gen: CaptionGenerator,
     image_generator: ImageGenerator,
 ) -> None:
-    builder = PostBuilder()
     caption = caption_gen.generate_trend_caption()
-    success = run_image_post_pipeline(caption, builder, image_generator, instagram_poster)
+    success = run_image_post_pipeline(caption, image_generator, instagram_poster)
     if not success:
         print("Falha na postagem.")
 

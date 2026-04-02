@@ -111,3 +111,23 @@ TITLE_SIMILARITY_THRESHOLD = float(os.getenv("TITLE_SIMILARITY_THRESHOLD", "0.86
 # OpenAI
 OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4.1-mini")
 OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
+
+# --- Visual / template editorial ---
+USE_REAL_IMAGE = os.getenv("USE_REAL_IMAGE", "true").lower() in ("1", "true", "yes")
+USE_BRAND_ASSET = os.getenv("USE_BRAND_ASSET", "true").lower() in ("1", "true", "yes")
+USE_AI_FALLBACK = os.getenv("USE_AI_FALLBACK", "true").lower() in ("1", "true", "yes")
+
+MIN_IMAGE_WIDTH = int(os.getenv("MIN_IMAGE_WIDTH", "500"))
+MIN_IMAGE_HEIGHT = int(os.getenv("MIN_IMAGE_HEIGHT", "280"))
+TEMPLATE_STYLE = os.getenv("TEMPLATE_STYLE", "modern_editorial")
+
+# Canvas Instagram (feed 4:5)
+VISUAL_CANVAS_W = int(os.getenv("VISUAL_CANVAS_W", "1080"))
+VISUAL_CANVAS_H = int(os.getenv("VISUAL_CANVAS_H", "1350"))
+
+BRAND_HANDLE = os.getenv("BRAND_HANDLE", "technews.maik")
+VISUAL_OUTPUT_DIR = DATA_DIR / "visual_output"
+
+# Qualidade mínima da imagem final (após template)
+MIN_FINAL_WIDTH = int(os.getenv("MIN_FINAL_WIDTH", "1080"))
+MIN_FINAL_HEIGHT = int(os.getenv("MIN_FINAL_HEIGHT", "1080"))

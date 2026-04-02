@@ -16,6 +16,13 @@ _DALLE_STYLE_SUFFIX = (
     "sem texto, logotipos ou letras na imagem, luz suave, paleta calma."
 )
 
+# Fallback do pipeline visual (capa editorial — não abstrato)
+_EDITORIAL_IMAGE_SUFFIX = (
+    "Photorealistic editorial photograph for a technology news magazine. "
+    "Real environment, single clear subject, credible scene, professional lighting, "
+    "high detail. No text, no watermark, no logos in the frame, no abstract art."
+)
+
 
 class ImageGenerator:
     def __init__(self) -> None:
@@ -39,6 +46,22 @@ class ImageGenerator:
             return response.data[0].url
         except Exception as e:
             print(f"Erro ao gerar imagem com DALL-E: {safe_exc(e)}")
+            return None
+
+    def generate_editorial_image(self, prompt: str) -> str | None:
+        """Imagem para capa editorial (sem sufixo minimalista genérico)."""
+        try:
+            full_prompt = f"{prompt.strip()}\n\n{_EDITORIAL_IMAGE_SUFFIX}"
+            response = self.client.images.generate(
+                model=config.OPENAI_IMAGE_MODEL,
+                prompt=full_prompt,
+                size="1024x1024",
+                quality="standard",
+                n=1,
+            )
+            return response.data[0].url
+        except Exception as e:
+            print(f"Erro ao gerar imagem editorial (DALL-E): {safe_exc(e)}")
             return None
 
     def upload_image_to_cloudinary(self, image_url: str) -> str | None:
