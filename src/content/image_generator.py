@@ -49,13 +49,16 @@ class ImageGenerator:
             return None
 
     def generate_editorial_image(self, prompt: str) -> str | None:
-        """Imagem para capa editorial (sem sufixo minimalista genérico)."""
+        """Imagem para capa editorial em formato vertical (compatível com feed 4:5)."""
         try:
-            full_prompt = f"{prompt.strip()}\n\n{_EDITORIAL_IMAGE_SUFFIX}"
+            full_prompt = (
+                f"{prompt.strip()}\n\n{_EDITORIAL_IMAGE_SUFFIX} "
+                "Vertical composition, portrait orientation, subject suited to a tall frame."
+            )
             response = self.client.images.generate(
                 model=config.OPENAI_IMAGE_MODEL,
                 prompt=full_prompt,
-                size="1024x1024",
+                size="1024x1792",
                 quality="standard",
                 n=1,
             )

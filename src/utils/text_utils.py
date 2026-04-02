@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+import html
 import re
 import unicodedata
 from difflib import SequenceMatcher
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 _WS = re.compile(r"\s+")
+_HTML_TAG = re.compile(r"<[^>]+>", re.DOTALL)
+
+
+def strip_html(text: str | None) -> str:
+    """Remove tags HTML e entidades para texto em template / legendas."""
+    if not text:
+        return ""
+    t = _HTML_TAG.sub(" ", text)
+    t = html.unescape(t)
+    t = _WS.sub(" ", t).strip()
+    return t
 
 
 def strip_accents(s: str) -> str:

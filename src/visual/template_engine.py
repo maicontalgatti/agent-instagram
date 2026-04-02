@@ -1,5 +1,6 @@
 """
-Template editorial fixo: gradiente, hero com blur de fundo, overlay, título, selo, @marca.
+Template editorial fixo: canvas 1080×1350 (4:5 feed Instagram), hero em retrato (cover),
+overlay, título, selo, @marca. Textos sem HTML.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
 
 import config
+from utils.text_utils import strip_html
 from visual.brand_style import get_style, topic_to_label
 
 logger = logging.getLogger(__name__)
@@ -58,10 +60,18 @@ def _rounded_alpha_mask(size: tuple[int, int], radius: int) -> Image.Image:
     return m
 
 
-def _contain_resize(im: Image.Image, max_w: int, max_h: int) -> Image.Image:
-    im = im.copy()
-    im.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
-    return im
+def _cover_crop_center(im: Image.Image, tw: int, th: int) -> Image.Image:
+    """Escala cobrindo (tw, th) e recorta o centro — preenche slot retrato sem faixas vazias laterais."""
+    im = im.convert("RGBA")
+    sw, sh = im.size
+    if sw < 1 or sh < 1:
+        return Image.new("RGBA", (tw, th), (40, 40, 50, 255))
+    scale = max(tw / sw, th / sh)
+    nw, nh = max(1, int(sw * scale)), max(1, int(sh * scale))
+    im = im.resize((nw, nh), Image.Resampling.LANCZOS)
+    left = (nw - tw) // 2
+    top = (nh - th) // 2
+    return im.crop((left, top, left + tw, top + th))
 
 
 def _apply_rounded_hero(im: Image.Image, radius: int) -> Image.Image:
@@ -87,66 +97,76 @@ def render_template(
     category: str,
     subtitle: str | None = None,
 ) -> Path:
+    """
+    Exporta JPEG 1080×1350 (proporção 4:5 do feed Instagram).
+    """
     W, H = config.VISUAL_CANVAS_W, config.VISUAL_CANVAS_H
     style = get_style(category)
     label = topic_to_label(category)
 
+    title_plain = strip_html(title)
+    sub_plain = strip_html(subtitle) if subtitle else None
+
     base = Image.open(base_image).convert("RGBA")
-    hero = _contain_resize(base, 960, 760)
-    hero_rounded = _apply_rounded_hero(hero, radius=22)
+    # Slot hero retrato (maior altura = menos “quadrado” no feed)
+    margin_x = 40
+    hero_w = W - margin_x * 2
+    hero_h = int(H * 0.58)
+    hero = _cover_crop_center(base, hero_w, hero_h)
+    hero_rounded = _apply_rounded_hero(hero, radius=20)
 
     canvas = _vertical_gradient((W, H), style["gradient_top"], style["gradient_bottom"]).convert("RGBA")
 
-    # Blur de fundo a partir do hero (camada editorial)
-    blur_src = hero.convert("RGB").resize((min(W, 1200), int(H * 0.5)), Image.Resampling.LANCZOS)
-    blur_src = blur_src.filter(ImageFilter.GaussianBlur(radius=16))
+    # Blur de fundo derivado do hero (camada editorial)
+    blur_src = hero.convert("RGB").resize((min(W, 1200), int(H * 0.52)), Image.Resampling.LANCZOS)
+    blur_src = blur_src.filter(ImageFilter.GaussianBlur(radius=14))
     bx = (W - blur_src.width) // 2
-    canvas.paste(blur_src, (bx, 100))
+    canvas.paste(blur_src, (bx, 72))
 
     hx = (W - hero_rounded.width) // 2
-    hy = 130
+    hy = 88
     canvas.alpha_composite(hero_rounded, (hx, hy))
 
-    # Faixa escura inferior para contraste do texto
     overlay_dark = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay_dark)
-    od.rectangle((0, int(H * 0.54), W, H), fill=(0, 0, 0, 175))
+    od.rectangle((0, int(H * 0.56), W, H), fill=(0, 0, 0, 178))
     canvas = Image.alpha_composite(canvas, overlay_dark)
 
     img = canvas.convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    font_title = _load_font(36)
-    font_sub = _load_font(21)
-    font_badge = _load_font(19)
-    font_handle = _load_font(22)
+    font_title = _load_font(35)
+    font_sub = _load_font(20)
+    font_badge = _load_font(18)
+    font_handle = _load_font(21)
 
-    # Selo
-    pad = 14
+    pad = 12
     bbox = draw.textbbox((0, 0), label, font=font_badge)
     bw = bbox[2] - bbox[0] + pad * 2
     bh = bbox[3] - bbox[1] + pad
-    draw.rounded_rectangle((36, 36, 36 + bw, 36 + bh), radius=8, fill=style["badge_bg"])
-    draw.text((36 + pad, 36 + pad // 2), label, fill=(255, 255, 255), font=font_badge)
+    draw.rounded_rectangle((32, 32, 32 + bw, 32 + bh), radius=8, fill=style["badge_bg"])
+    draw.text((32 + pad, 32 + pad // 2), label, fill=(255, 255, 255), font=font_badge)
 
-    y0 = int(H * 0.58)
-    lines = _title_lines(title, 4)
-    lh = 44
+    y0 = int(H * 0.60)
+    lines = _title_lines(title_plain, 4)
+    lh = 42
     for i, line in enumerate(lines):
-        draw.text((44, y0 + i * lh), line, fill=(255, 255, 255), font=font_title)
+        draw.text((40, y0 + i * lh), line, fill=(255, 255, 255), font=font_title)
 
-    if subtitle:
-        sub = " ".join(subtitle.split())[:160]
-        if len(sub) > 140:
-            sub = sub[:137] + "…"
-        draw.text((44, y0 + len(lines) * lh + 10), sub, fill=(200, 205, 215), font=font_sub)
+    if sub_plain:
+        sub = sub_plain[:200]
+        if len(sub) > 160:
+            sub = sub[:157] + "…"
+        draw.text((40, y0 + len(lines) * lh + 8), sub, fill=(200, 205, 215), font=font_sub)
 
     handle = f"@{config.BRAND_HANDLE.lstrip('@')}"
     hb = draw.textbbox((0, 0), handle, font=font_handle)
-    draw.text((W - (hb[2] - hb[0]) - 44, H - 64), handle, fill=style["accent"], font=font_handle)
+    draw.text((W - (hb[2] - hb[0]) - 40, H - 58), handle, fill=style["accent"], font=font_handle)
 
     config.VISUAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = config.VISUAL_OUTPUT_DIR / f"post_{abs(hash(title)) % 10_000_000}_final.jpg"
-    img.save(out, format="JPEG", quality=94, optimize=True)
-    logger.info("Template renderizado: %s", out.name)
+    out = config.VISUAL_OUTPUT_DIR / f"post_{abs(hash(title_plain)) % 10_000_000}_final.jpg"
+    img.save(out, format="JPEG", quality=95, optimize=True)
+    if img.size != (W, H):
+        logger.warning("Tamanho inesperado do canvas: %s", img.size)
+    logger.info("Template renderizado: %s (%sx%s)", out.name, W, H)
     return out

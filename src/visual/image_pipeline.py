@@ -20,6 +20,7 @@ from visual.asset_fetcher import fetch_brand_asset
 from visual.image_selector import select_best_image
 from visual.template_engine import render_template
 from utils.safe_log import safe_exc
+from utils.text_utils import strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +157,9 @@ def build_post_image(article: Article) -> VisualBuildResult | None:
         base.unlink(missing_ok=True)
         return None
 
-    title = (article.get("title") or "Technology").strip()
-    subtitle = (article.get("description") or "").strip() or None
+    title = strip_html(article.get("title") or "Technology").strip() or "Technology"
+    desc_raw = (article.get("description") or "").strip()
+    subtitle = strip_html(desc_raw) if desc_raw else None
 
     try:
         final_path = render_template(base, title, topic, subtitle=subtitle)

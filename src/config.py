@@ -130,4 +130,5 @@ VISUAL_OUTPUT_DIR = DATA_DIR / "visual_output"
 
 # Qualidade mínima da imagem final (após template)
 MIN_FINAL_WIDTH = int(os.getenv("MIN_FINAL_WIDTH", "1080"))
-MIN_FINAL_HEIGHT = int(os.getenv("MIN_FINAL_HEIGHT", "1080"))
+# Feed Instagram 4:5 = 1080×1350
+MIN_FINAL_HEIGHT = int(os.getenv("MIN_FINAL_HEIGHT", "1350"))
